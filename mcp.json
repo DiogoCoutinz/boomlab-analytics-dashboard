@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "supabase-mcp": {
+      "url": "https://uvvxvqrymdywxoqgnnvd.supabase.co/mcp/",
+      "transport": "streamable_http",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dnh2cXJ5bWR5d3hvcWdubnZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwODM3NDAsImV4cCI6MjA3NDY1OTc0MH0.3vNlo61Yl4c3XG7-8yDCKVBO4-f0iNMJeHXSSgzAI5w",
+        "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dnh2cXJ5bWR5d3hvcWdubnZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTA4Mzc0MCwiZXhwIjoyMDc0NjU5NzQwfQ.1_chZsdg44UoefpcmRBNR4NVEe1MGVwfnH95qvsKszQ",
+        "password": "Diogo2805!",
+        "projectId": "uvvxvqrymdywxoqgnnvd"
+      }
+    }
+  }
+}
