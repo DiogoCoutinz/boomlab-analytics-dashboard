@@ -747,12 +747,15 @@
           aggregated[key]._bounce_weighted += (row.bounce_rate || 0) * (row.sessions || 0);
         });
 
-        return Object.values(aggregated).map((page) => ({
-          ...page,
-          engagement_rate: page.sessions > 0 ? page._eng_weighted / page.sessions : 0,
-          avg_session_duration: page.sessions > 0 ? page._dur_weighted / page.sessions : 0,
-          bounce_rate: page.sessions > 0 ? page._bounce_weighted / page.sessions : 0,
-        })).sort((a, b) => b.sessions - a.sessions);
+        return Object.values(aggregated).map((page) => {
+          const engRate = page.sessions > 0 ? page._eng_weighted / page.sessions : 0;
+          return {
+            ...page,
+            engagement_rate: engRate,
+            avg_session_duration: page.sessions > 0 ? page._dur_weighted / page.sessions : 0,
+            bounce_rate: 1 - engRate, // Calculate from engagement_rate instead of DB field
+          };
+        }).sort((a, b) => b.sessions - a.sessions);
       };
 
       const fetchAcquisition = async (from, to, filters = {}) => {
@@ -818,7 +821,9 @@
         const sessions = sum(kpisData, 'sessions');
         const engagementRate = weightedAvg(kpisData, 'engagement_rate', 'sessions');
         const avgDuration = weightedAvg(kpisData, 'avg_session_duration', 'sessions');
-        const bounceRate = weightedAvg(kpisData, 'bounce_rate', 'sessions');
+        
+        // Calculate bounce rate as 1 - engagement_rate (field bounce_rate is always 0 in DB)
+        const bounceRate = 1 - engagementRate;
 
         return {
           totalUsers,
@@ -934,8 +939,8 @@
 
         const labels = sorted.map((d) => fmtDate(d.date));
         const sessions = sorted.map((d) => d.sessions);
-        const users = sorted.map((d) => d.totalUsers);
-        const engagement = sorted.map((d) => (d.engagementRate || 0) * 100);
+        const users = sorted.map((d) => d.total_users); // Fix: use snake_case
+        const engagement = sorted.map((d) => (d.engagement_rate || 0) * 100); // Fix: use snake_case
 
         // Debug log
         console.log('📊 Chart Data:', { sessions, users, engagement, kpisData });
@@ -983,15 +988,15 @@
             prevDataByDate[row.date] = {
               date: row.date,
               sessions: row.sessions,
-              totalUsers: row.total_users,
-              engagementRate: row.engagement_rate,
+              total_users: row.total_users,
+              engagement_rate: row.engagement_rate,
             };
           });
 
           const prevSorted = Object.values(prevDataByDate).sort((a, b) => (a.date > b.date ? 1 : -1));
           const prevSessions = prevSorted.map((d) => d.sessions);
-          const prevUsers = prevSorted.map((d) => d.totalUsers);
-          const prevEngagement = prevSorted.map((d) => (d.engagementRate || 0) * 100);
+          const prevUsers = prevSorted.map((d) => d.total_users); // Fix: use snake_case
+          const prevEngagement = prevSorted.map((d) => (d.engagement_rate || 0) * 100); // Fix: use snake_case
 
           datasets.push(
             {
