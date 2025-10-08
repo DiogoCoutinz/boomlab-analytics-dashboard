@@ -160,6 +160,19 @@
       .tooltip-icon:hover {
         opacity: 1;
       }
+
+      /* Cursor help for tooltips */
+      .cursor-help {
+        cursor: help;
+        text-decoration: underline;
+        text-decoration-style: dotted;
+        text-decoration-color: #3a3a3a;
+        text-underline-offset: 2px;
+      }
+
+      .cursor-help:hover {
+        text-decoration-color: #9ca3af;
+      }
     </style>
   </head>
 
@@ -469,6 +482,76 @@
       const fmtDelta = (current, previous) => {
         if (previous == null || previous === 0) return null;
         return ((current - previous) / previous) * 100;
+      };
+
+      // Clean and format source/medium strings
+      const cleanSourceMedium = (sourceMedium) => {
+        if (!sourceMedium || sourceMedium === 'Unknown') return '(não definido)';
+        
+        // URL decode: replace + with space and decode %XX
+        let cleaned = sourceMedium.replace(/\+/g, ' ').replace(/%([0-9A-F]{2})/gi, (_, hex) => 
+          String.fromCharCode(parseInt(hex, 16))
+        );
+        
+        // Check for long numeric IDs (likely campaign IDs)
+        if (/^\d{10,}/.test(cleaned)) {
+          const match = cleaned.match(/^(\d+)\s*\/\s*(.+)$/);
+          if (match) {
+            return `Campaign ${match[1].slice(0, 8)}... / ${match[2]}`;
+          }
+          return `Campaign ${cleaned.slice(0, 12)}...`;
+        }
+        
+        // Map known patterns to friendly names
+        const patterns = [
+          { regex: /^fb\s*\/\s*paid$/i, label: 'Facebook Ads' },
+          { regex: /^ig\s*\/\s*paid$/i, label: 'Instagram Ads' },
+          { regex: /^google\s*\/\s*cpc$/i, label: 'Google Ads' },
+          { regex: /^google\s*\/\s*organic$/i, label: 'Google (orgânico)' },
+          { regex: /^bing\s*\/\s*organic$/i, label: 'Bing (orgânico)' },
+          { regex: /^an\s*\/\s*paid$/i, label: 'Anúncios (outras redes)' },
+          { regex: /^fb\s*\/\s*(.+)/i, label: (m) => `Facebook / ${m[1]}` },
+          { regex: /^ig\s*\/\s*(.+)/i, label: (m) => `Instagram / ${m[1]}` },
+          { regex: /^adsmanager\.facebook\.com\s*\/\s*(.+)/i, label: 'Facebook Ads Manager' },
+          { regex: /^app\.gohighlevel\.com\s*\/\s*(.+)/i, label: 'GoHighLevel' },
+          { regex: /^business\.facebook\.com\s*\/\s*(.+)/i, label: 'Facebook Business' },
+          { regex: /^\(direct\)\s*\/\s*\(none\)$/i, label: 'Direto' },
+          { regex: /^\(not\s+set\)$/i, label: '(não definido)' },
+        ];
+        
+        for (const pattern of patterns) {
+          const match = cleaned.match(pattern.regex);
+          if (match) {
+            return typeof pattern.label === 'function' ? pattern.label(match) : pattern.label;
+          }
+        }
+        
+        // Truncate very long strings
+        if (cleaned.length > 60) {
+          return cleaned.slice(0, 57) + '...';
+        }
+        
+        return cleaned;
+      };
+
+      const cleanChannel = (channel) => {
+        if (!channel || channel === 'Unknown') return 'Unassigned';
+        
+        const mapping = {
+          'Organic Social': 'Redes Sociais (Orgânico)',
+          'Paid Social': 'Redes Sociais (Pago)',
+          'Organic Search': 'Pesquisa Orgânica',
+          'Paid Search': 'Pesquisa Paga',
+          'Direct': 'Direto',
+          'Referral': 'Referência',
+          'Email': 'Email',
+          'Affiliates': 'Afiliados',
+          'Display': 'Display',
+          'Paid Other': 'Outro (Pago)',
+          'Unassigned': 'Não Categorizado'
+        };
+        
+        return mapping[channel] || channel;
       };
 
       // ========================================
@@ -1125,10 +1208,17 @@
 
         const html = acquisition
           .map((row) => {
+            const channelClean = cleanChannel(row.channel);
+            const sourceClean = cleanSourceMedium(row.source_medium);
+            
             return `
             <tr>
-              <td>${row.channel}</td>
-              <td class="font-mono text-sm">${row.source_medium}</td>
+              <td>
+                <span title="${row.channel}">${channelClean}</span>
+              </td>
+              <td class="text-sm">
+                <span title="${row.source_medium}" class="cursor-help">${sourceClean}</span>
+              </td>
               <td>${fmtNumber(row.sessions)}</td>
               <td>${fmtNumber(row.unique_users)}</td>
               <td>${fmtPercent(row.engagement_rate)}</td>
@@ -1146,8 +1236,24 @@
 
         if (charts.acquisitionDonut) charts.acquisitionDonut.destroy();
 
-        const labels = acquisition.map((a) => a.channel);
-        const data = acquisition.map((a) => a.sessions);
+        // Group by channel (aggregate multiple sources)
+        const channelGroups = {};
+        acquisition.forEach((row) => {
+          const channelKey = row.channel || 'Unknown';
+          if (!channelGroups[channelKey]) {
+            channelGroups[channelKey] = {
+              channel: channelKey,
+              sessions: 0,
+              sources: []
+            };
+          }
+          channelGroups[channelKey].sessions += row.sessions || 0;
+          channelGroups[channelKey].sources.push(row.source_medium);
+        });
+
+        const grouped = Object.values(channelGroups).sort((a, b) => b.sessions - a.sessions);
+        const labels = grouped.map((g) => cleanChannel(g.channel));
+        const data = grouped.map((g) => g.sessions);
 
         charts.acquisitionDonut = new Chart(ctx, {
           type: 'doughnut',
@@ -1163,6 +1269,8 @@
                   CONFIG.colors.danger,
                   '#8b5cf6',
                   '#ec4899',
+                  '#f97316',
+                  '#06b6d4',
                 ],
               },
             ],
@@ -1172,7 +1280,7 @@
             maintainAspectRatio: false,
             plugins: {
               legend: {
-                labels: { color: '#e5e5e5' },
+                labels: { color: '#e5e5e5', padding: 12 },
                 position: 'bottom',
               },
               tooltip: {
@@ -1181,6 +1289,14 @@
                 bodyColor: '#9ca3af',
                 borderColor: '#3a3a3a',
                 borderWidth: 1,
+                callbacks: {
+                  label: (context) => {
+                    const value = context.parsed;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${context.label}: ${value.toLocaleString('pt-PT')} (${percentage}%)`;
+                  }
+                }
               },
             },
           },
