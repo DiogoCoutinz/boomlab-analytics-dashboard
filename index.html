@@ -648,64 +648,51 @@
               engRate = engRate / 100; // Convert percentage to decimal (83 -> 0.83)
             }
 
-            return {
-              date: row.date,
-              total_users: row.unique_users,
-              sessions: row.sessions,
-              new_users: row.new_users,
-              engagement_rate: engRate,
-              avg_session_duration: row.avg_session_duration || 0,
-              bounce_rate: row.bounce_rate || 0,
-            };
+          return {
+            date: row.date,
+            total_users: row.total_users,
+            sessions: row.sessions,
+            new_users: row.new_users,
+            engagement_rate: engRate,
+            avg_session_duration: row.avg_session_duration || 0,
+            bounce_rate: row.bounce_rate || 0,
+          };
           });
         }
 
-        // No filters: aggregate all hostnames
+        // No filters: use analytics_completo table with global hostname (already aggregated, no duplicates)
         let query = supabase
-          .from('analytics_users_summary')
+          .from('analytics_completo')
           .select('*')
           .gte('date', from)
           .lte('date', to)
+          .eq('hostname', 'global')
           .order('date', { ascending: true });
 
         const { data, error } = await query;
         if (error) throw error;
 
-        console.log('📊 Raw data from Supabase (no filter, all hostnames):', data);
+        console.log('📊 Raw data from Supabase (global aggregated):', data);
 
-        // Aggregate by date (sum across all hostnames)
-        const aggregated = {};
-        (data || []).forEach((row) => {
-          if (!aggregated[row.date]) {
-            aggregated[row.date] = {
-              date: row.date,
-              total_users: 0,
-              sessions: 0,
-              new_users: 0,
-              engaged_sessions: 0,
-              _eng_weighted: 0,
-              _dur_weighted: 0,
-              _bounce_weighted: 0,
-            };
+        return (data || []).map((row) => {
+          // Normalize engagement_rate: if > 1, it's already percentage; if < 1, it's decimal
+          let engRate = row.engagement_rate || 0;
+          if (engRate > 0 && engRate <= 1) {
+            engRate = engRate; // Keep as decimal (0.33)
+          } else if (engRate > 1) {
+            engRate = engRate / 100; // Convert percentage to decimal (33 -> 0.33)
           }
-          aggregated[row.date].total_users += row.unique_users || 0;
-          aggregated[row.date].sessions += row.sessions || 0;
-          aggregated[row.date].new_users += row.new_users || 0;
-          aggregated[row.date].engaged_sessions += row.engaged_sessions || 0;
-          aggregated[row.date]._eng_weighted += (row.engagement_rate || 0) * (row.sessions || 0);
-          aggregated[row.date]._dur_weighted += (row.avg_session_duration || 0) * (row.sessions || 0);
-          aggregated[row.date]._bounce_weighted += (row.bounce_rate || 0) * (row.sessions || 0);
-        });
 
-        return Object.values(aggregated).map((day) => ({
-          date: day.date,
-          total_users: day.total_users,
-          sessions: day.sessions,
-          new_users: day.new_users,
-          engagement_rate: day.sessions > 0 ? day._eng_weighted / day.sessions : 0,
-          avg_session_duration: day.sessions > 0 ? day._dur_weighted / day.sessions : 0,
-          bounce_rate: day.sessions > 0 ? day._bounce_weighted / day.sessions : 0,
-        })).sort((a, b) => (a.date > b.date ? 1 : -1));
+          return {
+            date: row.date,
+            total_users: row.total_users,
+            sessions: row.sessions,
+            new_users: row.new_users,
+            engagement_rate: engRate,
+            avg_session_duration: row.avg_session_duration || 0,
+            bounce_rate: row.bounce_rate || 0,
+          };
+        }).sort((a, b) => (a.date > b.date ? 1 : -1));
       };
 
       const fetchPages = async (from, to, filters = {}) => {
