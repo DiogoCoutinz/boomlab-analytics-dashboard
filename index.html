@@ -624,12 +624,23 @@
       // ========================================
 
       const fetchDailyKPIs = async (from, to, filters = {}) => {
+        // Ensure at least 7 days (1 week) of data for the chart
+        const fromDate = dayjs(from);
+        const toDate = dayjs(to);
+        const daysDiff = toDate.diff(fromDate, 'day') + 1;
+        
+        let adjustedFrom = from;
+        if (daysDiff < 7) {
+          // Expand the range to show at least 7 days
+          adjustedFrom = toDate.subtract(6, 'day').format('YYYY-MM-DD');
+        }
+
         // If hostname filter is applied, query analytics_users_summary with hostname filter
         if (filters.hostname) {
           let query = supabase
             .from('analytics_users_summary')
             .select('*')
-            .gte('date', from)
+            .gte('date', adjustedFrom)
             .lte('date', to)
             .eq('hostname', filters.hostname)
             .order('date', { ascending: true });
@@ -664,7 +675,7 @@
         let query = supabase
           .from('analytics_completo')
           .select('*')
-          .gte('date', from)
+          .gte('date', adjustedFrom)
           .lte('date', to)
           .eq('hostname', 'global')
           .order('date', { ascending: true });
