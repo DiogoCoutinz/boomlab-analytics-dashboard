@@ -223,14 +223,6 @@
             </select>
           </div>
         </div>
-
-        <!-- Compare Toggle -->
-        <div class="mt-4 flex items-center gap-2">
-          <input type="checkbox" id="toggle-compare" class="w-4 h-4 cursor-pointer" />
-          <label for="toggle-compare" class="text-sm text-gray-400 cursor-pointer select-none">
-            Comparar com período anterior
-          </label>
-        </div>
       </div>
     </section>
 
@@ -435,7 +427,6 @@
         cache: new Map(),
         loading: false,
         activeTab: 'overview',
-        compareMode: false,
         lastRefresh: null,
         lastRefreshInWindow: false,
       };
@@ -967,57 +958,6 @@
             pointHoverRadius: 6,
           },
         ];
-
-        // Add previous period data if compare mode is active
-        if (state.compareMode && state.datasets.kpisPrevious.length > 0) {
-          const prevDataByDate = {};
-          state.datasets.kpisPrevious.forEach((row) => {
-            prevDataByDate[row.date] = {
-              date: row.date,
-              sessions: row.sessions,
-              total_users: row.total_users,
-              engagement_rate: row.engagement_rate,
-            };
-          });
-
-          const prevSorted = Object.values(prevDataByDate).sort((a, b) => (a.date > b.date ? 1 : -1));
-          const prevSessions = prevSorted.map((d) => d.sessions);
-          const prevUsers = prevSorted.map((d) => d.total_users); // Fix: use snake_case
-          const prevEngagement = prevSorted.map((d) => (d.engagement_rate || 0) * 100); // Fix: use snake_case
-
-          datasets.push(
-            {
-              label: 'Sessions (anterior)',
-              data: prevSessions,
-              borderColor: CONFIG.colors.primary,
-              backgroundColor: 'transparent',
-              tension: 0.3,
-              yAxisID: 'y',
-              borderDash: [5, 5],
-              borderWidth: 1.5,
-            },
-            {
-              label: 'Users (anterior)',
-              data: prevUsers,
-              borderColor: CONFIG.colors.success,
-              backgroundColor: 'transparent',
-              tension: 0.3,
-              yAxisID: 'y',
-              borderDash: [5, 5],
-              borderWidth: 1.5,
-            },
-            {
-              label: 'Engagement Rate (%) (anterior)',
-              data: prevEngagement,
-              borderColor: CONFIG.colors.warning,
-              backgroundColor: 'transparent',
-              tension: 0.3,
-              yAxisID: 'y1',
-              borderDash: [5, 5],
-              borderWidth: 1.5,
-            }
-          );
-        }
 
         charts.overview = new Chart(ctx, {
           type: 'line',
@@ -1560,12 +1500,6 @@
 
         document.getElementById('btn-refresh').addEventListener('click', () => {
           fetchAllData(true);
-        });
-
-        document.getElementById('toggle-compare').addEventListener('change', (e) => {
-          state.compareMode = e.target.checked;
-          // Re-render current tab to show/hide comparison
-          renderTabContent(state.activeTab);
         });
 
         document.querySelectorAll('.tab').forEach((tab) => {
