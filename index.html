@@ -173,14 +173,84 @@
       .cursor-help:hover {
         text-decoration-color: #9ca3af;
       }
+
+      /* Switch Toggle (iOS style) */
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #374151;
+        transition: 0.3s;
+        border-radius: 24px;
+      }
+
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+
+      input:checked + .slider {
+        background-color: #3b82f6;
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(24px);
+      }
+
+      /* Domain row */
+      .domain-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: #0f0f0f;
+        border: 1px solid #2a2a2a;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease;
+      }
+
+      .domain-row:hover {
+        border-color: #3a3a3a;
+        background: #1f1f1f;
+      }
+
+      .domain-row.disabled {
+        opacity: 0.5;
+      }
     </style>
   </head>
 
   <body class="font-sans">
     <!-- Header -->
     <header class="border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-50">
-      <div class="container mx-auto px-6 py-4">
+      <div class="container mx-auto px-6 py-4 flex justify-between items-center">
         <h1 class="text-2xl font-bold">📈 Dashboard de Analytics — BoomLab</h1>
+        <button id="btn-settings" class="btn flex items-center gap-2">
+          ⚙️ Definições
+        </button>
       </div>
     </header>
 
@@ -368,6 +438,47 @@
       </div>
     </footer>
 
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center">
+      <!-- Backdrop -->
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="settings-backdrop"></div>
+      
+      <!-- Modal Content -->
+      <div class="relative bg-[#1a1a1a] border border-gray-800 rounded-lg w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+        <!-- Header -->
+        <div class="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
+          <div>
+            <h2 class="text-xl font-bold">⚙️ Gestão de Domínios</h2>
+            <p class="text-sm text-gray-400 mt-1">Ativar ou desativar domínios nas estatísticas</p>
+          </div>
+          <button id="btn-close-settings" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+        </div>
+
+        <!-- Domain List -->
+        <div class="flex-1 overflow-y-auto px-6 py-4">
+          <div id="domains-list" class="space-y-3">
+            <!-- Will be populated dynamically -->
+            <div class="text-center text-gray-500 py-8">A carregar domínios...</div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="border-t border-gray-800 px-6 py-4 flex justify-between items-center">
+          <div class="text-sm text-gray-400">
+            <span id="domains-count-active">0</span> ativos / <span id="domains-count-total">0</span> totais
+          </div>
+          <div class="flex gap-3">
+            <button id="btn-cancel-settings" class="px-4 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 transition">
+              Cancelar
+            </button>
+            <button id="btn-save-settings" class="btn">
+              Guardar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
       // ========================================
       // CONFIG
@@ -424,6 +535,9 @@
           pages: [],
           acquisition: [],
         },
+        domainSettings: {}, // { 'hostname': true/false }
+        tempDomainSettings: {}, // Temporary state for modal
+        allDomains: [], // All available domains
         cache: new Map(),
         loading: false,
         activeTab: 'overview',
@@ -538,6 +652,10 @@
       // UTILS
       // ========================================
 
+      const getActiveDomains = () => {
+        return Object.keys(state.domainSettings).filter(h => state.domainSettings[h] === true);
+      };
+
       const getDateRange = (period) => {
         const now = dayjs().tz(CONFIG.timezone);
         let from, to;
@@ -617,6 +735,12 @@
 
         // If hostname filter is applied, query analytics_users_summary with hostname filter
         if (filters.hostname) {
+          // Check if domain is active
+          if (state.domainSettings[filters.hostname] === false) {
+            console.warn(`Domain ${filters.hostname} is disabled`);
+            return [];
+          }
+
           let query = supabase
             .from('analytics_users_summary')
             .select('*')
@@ -651,37 +775,63 @@
           });
         }
 
-        // No filters: use analytics_completo table with global hostname (already aggregated, no duplicates)
+        // No filters: aggregate only active domains
+        const activeDomains = getActiveDomains();
+        
+        if (activeDomains.length === 0) {
+          console.warn('No active domains');
+          return [];
+        }
+
         let query = supabase
-          .from('analytics_completo')
+          .from('analytics_users_summary')
           .select('*')
           .gte('date', adjustedFrom)
           .lte('date', to)
-          .eq('hostname', 'global')
+          .in('hostname', activeDomains)
           .order('date', { ascending: true });
 
         const { data, error } = await query;
         if (error) throw error;
 
-        console.log('📊 Raw data from Supabase (global aggregated):', data);
+        console.log('📊 Raw data from Supabase (active domains only):', data);
 
-        return (data || []).map((row) => {
-          // Normalize engagement_rate: if > 1, it's already percentage; if < 1, it's decimal
-          let engRate = row.engagement_rate || 0;
-          if (engRate > 0 && engRate <= 1) {
-            engRate = engRate; // Keep as decimal (0.33)
-          } else if (engRate > 1) {
-            engRate = engRate / 100; // Convert percentage to decimal (33 -> 0.33)
+        // Aggregate by date
+        const aggregated = {};
+        (data || []).forEach((row) => {
+          const dateKey = row.date;
+          if (!aggregated[dateKey]) {
+            aggregated[dateKey] = {
+              date: dateKey,
+              total_users: 0,
+              sessions: 0,
+              new_users: 0,
+              _eng_weighted: 0,
+              _dur_weighted: 0,
+              bounce_rate: 0,
+            };
           }
+          aggregated[dateKey].total_users += row.total_users || 0;
+          aggregated[dateKey].sessions += row.sessions || 0;
+          aggregated[dateKey].new_users += row.new_users || 0;
+          
+          let engRate = row.engagement_rate || 0;
+          if (engRate > 1) engRate = engRate / 100;
+          
+          aggregated[dateKey]._eng_weighted += engRate * (row.sessions || 0);
+          aggregated[dateKey]._dur_weighted += (row.avg_session_duration || 0) * (row.sessions || 0);
+        });
 
+        return Object.values(aggregated).map((row) => {
+          const engRate = row.sessions > 0 ? row._eng_weighted / row.sessions : 0;
           return {
             date: row.date,
             total_users: row.total_users,
             sessions: row.sessions,
             new_users: row.new_users,
             engagement_rate: engRate,
-            avg_session_duration: row.avg_session_duration || 0,
-            bounce_rate: row.bounce_rate || 0,
+            avg_session_duration: row.sessions > 0 ? row._dur_weighted / row.sessions : 0,
+            bounce_rate: 1 - engRate,
           };
         }).sort((a, b) => (a.date > b.date ? 1 : -1));
       };
@@ -696,7 +846,15 @@
 
         // Apply hostname filter if set
         if (filters.hostname) {
+          if (state.domainSettings[filters.hostname] === false) {
+            return [];
+          }
           query = query.eq('hostname', filters.hostname);
+        } else {
+          // Only active domains
+          const activeDomains = getActiveDomains();
+          if (activeDomains.length === 0) return [];
+          query = query.in('hostname', activeDomains);
         }
 
         const { data, error } = await query;
@@ -746,7 +904,15 @@
 
         // Apply hostname filter if set
         if (filters.hostname) {
+          if (state.domainSettings[filters.hostname] === false) {
+            return [];
+          }
           query = query.eq('hostname', filters.hostname);
+        } else {
+          // Only active domains
+          const activeDomains = getActiveDomains();
+          if (activeDomains.length === 0) return [];
+          query = query.in('hostname', activeDomains);
         }
 
         const { data, error } = await query;
@@ -777,16 +943,43 @@
       };
 
       const fetchFilterOptions = async () => {
-        // Fetch unique hostnames for dropdown
+        // Fetch unique hostnames for dropdown (only active ones)
+        const activeDomains = getActiveDomains();
+        
+        if (activeDomains.length === 0) {
+          return { hostnames: [] };
+        }
+
         const { data: hostnames } = await supabase
           .from('analytics_core')
           .select('hostname')
           .not('hostname', 'is', null)
+          .in('hostname', activeDomains)
           .order('hostname');
 
         const uniqueHostnames = [...new Set(hostnames?.map((h) => h.hostname) || [])];
 
         return { hostnames: uniqueHostnames };
+      };
+
+      const fetchAllHostnames = async () => {
+        // Fetch ALL unique hostnames from all tables (for settings)
+        const [coreData, summaryData, acquisitionData] = await Promise.all([
+          supabase.from('analytics_core').select('hostname').not('hostname', 'is', null),
+          supabase.from('analytics_users_summary').select('hostname').not('hostname', 'is', null),
+          supabase.from('analytics_acquisition').select('hostname').not('hostname', 'is', null),
+        ]);
+
+        const allHostnames = new Set();
+        
+        coreData.data?.forEach(row => allHostnames.add(row.hostname));
+        summaryData.data?.forEach(row => allHostnames.add(row.hostname));
+        acquisitionData.data?.forEach(row => allHostnames.add(row.hostname));
+
+        // Remove 'global' if present
+        allHostnames.delete('global');
+
+        return [...allHostnames].sort();
       };
 
       // ========================================
@@ -1283,6 +1476,22 @@
         }
       };
 
+      const saveDomainSettingsToLocalStorage = () => {
+        localStorage.setItem('boomlab-domain-settings', JSON.stringify(state.domainSettings));
+      };
+
+      const loadDomainSettingsFromLocalStorage = () => {
+        const saved = localStorage.getItem('boomlab-domain-settings');
+        if (saved) {
+          try {
+            state.domainSettings = JSON.parse(saved);
+          } catch (e) {
+            console.error('Error parsing domain settings:', e);
+            state.domainSettings = {};
+          }
+        }
+      };
+
       const updateQueryParams = () => {
         const params = new URLSearchParams();
         if (state.filters.period) params.set('period', state.filters.period);
@@ -1409,10 +1618,101 @@
         }
       };
 
+      const openSettingsModal = async () => {
+        // Clone current settings to temp
+        state.tempDomainSettings = { ...state.domainSettings };
+
+        // Show modal
+        document.getElementById('settings-modal').classList.remove('hidden');
+
+        // Render domains
+        await renderDomainsList();
+      };
+
+      const closeSettingsModal = () => {
+        document.getElementById('settings-modal').classList.add('hidden');
+      };
+
+      const saveSettingsModal = () => {
+        // Save temp to actual
+        state.domainSettings = { ...state.tempDomainSettings };
+        saveDomainSettingsToLocalStorage();
+        
+        // Close modal
+        closeSettingsModal();
+
+        // Reset hostname filter if current one is now disabled
+        if (state.filters.hostname && state.domainSettings[state.filters.hostname] === false) {
+          state.filters.hostname = '';
+          document.getElementById('filter-hostname').value = '';
+        }
+
+        // Refresh data and dropdown
+        populateFilterOptions().then(() => {
+          applyFiltersToUI();
+          fetchAllData(true);
+        });
+      };
+
+      const renderDomainsList = async () => {
+        const container = document.getElementById('domains-list');
+        
+        if (state.allDomains.length === 0) {
+          container.innerHTML = '<div class="text-center text-gray-500 py-8">Nenhum domínio encontrado</div>';
+          return;
+        }
+
+        const activeCount = Object.values(state.tempDomainSettings).filter(v => v === true).length;
+        document.getElementById('domains-count-active').textContent = activeCount;
+        document.getElementById('domains-count-total').textContent = state.allDomains.length;
+
+        const html = state.allDomains.map((hostname) => {
+          const isActive = state.tempDomainSettings[hostname] !== false;
+          const rowClass = isActive ? '' : 'disabled';
+          
+          return `
+            <div class="domain-row ${rowClass}">
+              <div>
+                <div class="font-mono text-sm">${hostname}</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" ${isActive ? 'checked' : ''} data-hostname="${hostname}">
+                <span class="slider"></span>
+              </label>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = html;
+
+        // Add event listeners to switches
+        container.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+          checkbox.addEventListener('change', (e) => {
+            const hostname = e.target.dataset.hostname;
+            state.tempDomainSettings[hostname] = e.target.checked;
+            
+            // Update row style
+            const row = e.target.closest('.domain-row');
+            if (e.target.checked) {
+              row.classList.remove('disabled');
+            } else {
+              row.classList.add('disabled');
+            }
+
+            // Update counts
+            const activeCount = Object.values(state.tempDomainSettings).filter(v => v === true).length;
+            document.getElementById('domains-count-active').textContent = activeCount;
+          });
+        });
+      };
+
       const populateFilterOptions = async () => {
         const { hostnames } = await fetchFilterOptions();
 
         const hostnameSelect = document.getElementById('filter-hostname');
+        // Clear existing options except first one
+        hostnameSelect.innerHTML = '<option value="">Todos os domínios</option>';
+        
         hostnames.forEach((hostname) => {
           const option = document.createElement('option');
           option.value = hostname;
@@ -1456,6 +1756,20 @@
       // ========================================
 
       const init = async () => {
+        // Load domain settings first
+        loadDomainSettingsFromLocalStorage();
+
+        // Fetch all available domains
+        state.allDomains = await fetchAllHostnames();
+
+        // Initialize domain settings for new domains (default: all active)
+        state.allDomains.forEach((hostname) => {
+          if (state.domainSettings[hostname] === undefined) {
+            state.domainSettings[hostname] = true;
+          }
+        });
+        saveDomainSettingsToLocalStorage();
+
         // Load filters
         loadFiltersFromLocalStorage();
         loadFiltersFromQueryParams();
@@ -1500,6 +1814,27 @@
 
         document.getElementById('btn-refresh').addEventListener('click', () => {
           fetchAllData(true);
+        });
+
+        // Settings modal
+        document.getElementById('btn-settings').addEventListener('click', () => {
+          openSettingsModal();
+        });
+
+        document.getElementById('btn-close-settings').addEventListener('click', () => {
+          closeSettingsModal();
+        });
+
+        document.getElementById('btn-cancel-settings').addEventListener('click', () => {
+          closeSettingsModal();
+        });
+
+        document.getElementById('btn-save-settings').addEventListener('click', () => {
+          saveSettingsModal();
+        });
+
+        document.getElementById('settings-backdrop').addEventListener('click', () => {
+          closeSettingsModal();
         });
 
         document.querySelectorAll('.tab').forEach((tab) => {
