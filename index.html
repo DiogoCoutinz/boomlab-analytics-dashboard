@@ -358,6 +358,16 @@
 
       <!-- Pages Tab -->
       <div id="tab-pages" class="tab-content hidden">
+        <!-- Domain breakdown (only when "Todos os domínios") -->
+        <div id="pages-domain-breakdown" class="hidden mb-6">
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">📊 Distribuição por Domínio</h3>
+            <div class="chart-container" style="height: 350px;">
+              <canvas id="chart-domains-breakdown"></canvas>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="card rounded-lg p-6">
             <h3 class="text-lg font-semibold mb-4">Top Páginas</h3>
@@ -534,6 +544,7 @@
           kpisPrevious: [],
           pages: [],
           acquisition: [],
+          domainBreakdown: [],
         },
         domainSettings: {}, // { 'hostname': true/false }
         tempDomainSettings: {}, // Temporary state for modal
@@ -982,6 +993,41 @@
         return [...allHostnames].sort();
       };
 
+      const fetchDomainBreakdown = async (from, to) => {
+        const activeDomains = getActiveDomains();
+        
+        if (activeDomains.length === 0) return [];
+
+        let query = supabase
+          .from('analytics_users_summary')
+          .select('hostname, total_users, sessions, new_users')
+          .gte('date', from)
+          .lte('date', to)
+          .in('hostname', activeDomains);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        // Aggregate by hostname
+        const aggregated = {};
+        (data || []).forEach((row) => {
+          const hostname = row.hostname;
+          if (!aggregated[hostname]) {
+            aggregated[hostname] = {
+              hostname,
+              total_users: 0,
+              sessions: 0,
+              new_users: 0,
+            };
+          }
+          aggregated[hostname].total_users += row.total_users || 0;
+          aggregated[hostname].sessions += row.sessions || 0;
+          aggregated[hostname].new_users += row.new_users || 0;
+        });
+
+        return Object.values(aggregated).sort((a, b) => b.sessions - a.sessions);
+      };
+
       // ========================================
       // COMPUTE
       // ========================================
@@ -1326,6 +1372,79 @@
         });
       };
 
+      const renderDomainBreakdownChart = (domainData) => {
+        const ctx = document.getElementById('chart-domains-breakdown');
+        if (!ctx) return;
+
+        if (charts.domainBreakdown) charts.domainBreakdown.destroy();
+
+        const labels = domainData.map(d => d.hostname);
+        const sessions = domainData.map(d => d.sessions);
+        const users = domainData.map(d => d.total_users);
+
+        // Generate colors for each domain
+        const colors = [
+          '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+          '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+        ];
+
+        charts.domainBreakdown = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Sessions',
+                data: sessions,
+                backgroundColor: CONFIG.colors.primary,
+                borderRadius: 4,
+              },
+              {
+                label: 'Users',
+                data: users,
+                backgroundColor: CONFIG.colors.success,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                align: 'end',
+                labels: { 
+                  color: '#e5e5e5',
+                  padding: 15,
+                  usePointStyle: true,
+                },
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+                padding: 12,
+              },
+            },
+            scales: {
+              x: {
+                ticks: { color: '#9ca3af' },
+                grid: { color: '#2a2a2a' },
+              },
+              y: {
+                ticks: { color: '#9ca3af' },
+                grid: { color: '#2a2a2a' },
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+      };
+
 
       const renderAcquisitionTable = (acquisition) => {
         const tbody = document.querySelector('#table-acquisition tbody');
@@ -1546,6 +1665,17 @@
             renderOverviewChart(state.datasets.kpisCurrent);
             break;
           case 'pages':
+            // Show/hide domain breakdown based on filter
+            const showBreakdown = !state.filters.hostname && state.datasets.domainBreakdown.length > 1;
+            const breakdownEl = document.getElementById('pages-domain-breakdown');
+            
+            if (showBreakdown) {
+              breakdownEl.classList.remove('hidden');
+              renderDomainBreakdownChart(state.datasets.domainBreakdown);
+            } else {
+              breakdownEl.classList.add('hidden');
+            }
+
             renderPagesTable(state.datasets.pages);
             renderPagesBarChart(state.datasets.pages);
             break;
@@ -1581,12 +1711,21 @@
           };
 
           // Fetch current + previous period + pages + acquisition in parallel
-          const [kpisCurrentFull, kpisPreviousFull, pages, acquisition] = await Promise.all([
+          // Also fetch domain breakdown if "Todos os domínios" is selected
+          const promises = [
             fetchDailyKPIs(from, to, filters),
             fetchDailyKPIs(previous.from, previous.to, filters),
             fetchPages(from, to, filters),
             fetchAcquisition(from, to, filters),
-          ]);
+          ];
+
+          // Add domain breakdown only when no hostname filter
+          if (!state.filters.hostname) {
+            promises.push(fetchDomainBreakdown(from, to));
+          }
+
+          const results = await Promise.all(promises);
+          const [kpisCurrentFull, kpisPreviousFull, pages, acquisition, domainBreakdown] = results;
 
           // Filter data to EXACT period for KPI calculation (not expanded)
           const kpisCurrent = kpisCurrentFull.filter(d => d.date >= from && d.date <= to);
@@ -1597,6 +1736,7 @@
           state.datasets.kpisPrevious = kpisPreviousFull;
           state.datasets.pages = pages;
           state.datasets.acquisition = acquisition;
+          state.datasets.domainBreakdown = domainBreakdown || [];
 
           // Compute KPIs using ONLY the filtered period data
           const currentKPIs = computeKPIs(kpisCurrent);
