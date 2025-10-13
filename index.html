@@ -240,6 +240,54 @@
       .domain-row.disabled {
         opacity: 0.5;
       }
+
+      /* Settings tabs */
+      .settings-tab {
+        cursor: pointer;
+        padding: 0.75rem 1.5rem;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        color: #9ca3af;
+      }
+
+      .settings-tab:hover {
+        color: #e5e5e5;
+      }
+
+      .settings-tab.active {
+        color: #3b82f6 !important;
+        border-bottom-color: #3b82f6 !important;
+      }
+
+      /* Page row for obrigado settings */
+      .page-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        background: #0f0f0f;
+        border: 1px solid #2a2a2a;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+      }
+
+      .page-row:hover {
+        border-color: #3a3a3a;
+        background: #1a1a1a;
+      }
+
+      .page-row.is-obrigado {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.05);
+      }
+
+      /* Checkbox style */
+      .checkbox-obrigado {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: #10b981;
+      }
     </style>
   </head>
 
@@ -339,6 +387,7 @@
         <div class="tab active" data-tab="overview">Visão Geral</div>
         <div class="tab" data-tab="pages">Páginas</div>
         <div class="tab" data-tab="acquisition">Aquisição</div>
+        <div class="tab" data-tab="conversion">Conversão</div>
       </div>
     </section>
 
@@ -434,6 +483,76 @@
         </div>
       </div>
 
+      <!-- Conversion Tab -->
+      <div id="tab-conversion" class="tab-content hidden">
+        <div id="conversion-content" class="grid grid-cols-1 gap-6">
+          <!-- KPIs de Conversão -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="card rounded-lg p-6">
+              <h4 class="text-sm text-gray-400 mb-2">Total Conversões</h4>
+              <div class="text-3xl font-bold" id="conversion-total-sessions">—</div>
+              <div class="text-xs text-gray-500 mt-1">Sessions em páginas de obrigado</div>
+            </div>
+            <div class="card rounded-lg p-6">
+              <h4 class="text-sm text-gray-400 mb-2">Utilizadores Convertidos</h4>
+              <div class="text-3xl font-bold" id="conversion-total-users">—</div>
+              <div class="text-xs text-gray-500 mt-1">Utilizadores únicos</div>
+            </div>
+            <div class="card rounded-lg p-6">
+              <h4 class="text-sm text-gray-400 mb-2">Taxa de Engagement</h4>
+              <div class="text-3xl font-bold" id="conversion-engagement-rate">—</div>
+              <div class="text-xs text-gray-500 mt-1">Engagement médio</div>
+            </div>
+          </div>
+
+          <!-- Gráfico de Evolução -->
+          <div class="card rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">📈 Evolução de Conversões</h3>
+            <div class="chart-container" style="height: 300px;">
+              <canvas id="chart-conversion-timeline"></canvas>
+            </div>
+          </div>
+
+          <!-- Tabelas -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Top Páginas de Conversão -->
+            <div class="card rounded-lg p-6">
+              <h3 class="text-lg font-semibold mb-4">🎯 Top Páginas de Conversão</h3>
+              <div class="overflow-x-auto">
+                <table id="table-conversion-pages">
+                  <thead>
+                    <tr>
+                      <th data-sort="page">Página</th>
+                      <th data-sort="sessions">Sessions</th>
+                      <th data-sort="users">Users</th>
+                      <th data-sort="engagement">Engagement</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Breakdown por Domínio -->
+            <div class="card rounded-lg p-6">
+              <h3 class="text-lg font-semibold mb-4">🌐 Conversões por Domínio</h3>
+              <div class="chart-container">
+                <canvas id="chart-conversion-domains"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="conversion-empty" class="hidden card rounded-lg p-12 text-center">
+          <svg class="mx-auto h-16 w-16 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-gray-400 text-lg">Nenhuma página de obrigado configurada</p>
+          <p class="text-gray-500 text-sm mt-2">Vai às <button onclick="document.getElementById('btn-settings').click()" class="text-blue-500 hover:underline">Definições</button> e marca as páginas de conversão</p>
+        </div>
+      </div>
+
     </section>
 
     <!-- Footer -->
@@ -454,21 +573,45 @@
       <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" id="settings-backdrop"></div>
       
       <!-- Modal Content -->
-      <div class="relative bg-[#1a1a1a] border border-gray-800 rounded-lg w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
+      <div class="relative bg-[#1a1a1a] border border-gray-800 rounded-lg w-full max-w-3xl mx-4 max-h-[85vh] flex flex-col">
         <!-- Header -->
         <div class="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
           <div>
-            <h2 class="text-xl font-bold">⚙️ Gestão de Domínios</h2>
-            <p class="text-sm text-gray-400 mt-1">Ativar ou desativar domínios nas estatísticas</p>
+            <h2 class="text-xl font-bold">⚙️ Definições</h2>
+            <p class="text-sm text-gray-400 mt-1">Configurações do dashboard</p>
           </div>
           <button id="btn-close-settings" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
         </div>
 
-        <!-- Domain List -->
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-800 px-6">
+          <div class="settings-tab active" data-settings-tab="domains" style="cursor: pointer; padding: 0.75rem 1.5rem; border-bottom: 2px solid transparent; transition: all 0.2s ease; color: #3b82f6; border-bottom-color: #3b82f6;">
+            🌐 Domínios
+          </div>
+          <div class="settings-tab" data-settings-tab="pages" style="cursor: pointer; padding: 0.75rem 1.5rem; border-bottom: 2px solid transparent; transition: all 0.2s ease; color: #9ca3af;">
+            🎯 Páginas de Obrigado
+          </div>
+        </div>
+
+        <!-- Tab Content -->
         <div class="flex-1 overflow-y-auto px-6 py-4">
-          <div id="domains-list" class="space-y-3">
-            <!-- Will be populated dynamically -->
-            <div class="text-center text-gray-500 py-8">A carregar domínios...</div>
+          <!-- Domain List Tab -->
+          <div id="settings-tab-domains" class="settings-tab-content">
+            <div id="domains-list" class="space-y-3">
+              <!-- Will be populated dynamically -->
+              <div class="text-center text-gray-500 py-8">A carregar domínios...</div>
+            </div>
+          </div>
+
+          <!-- Pages List Tab -->
+          <div id="settings-tab-pages" class="settings-tab-content hidden">
+            <div class="mb-4 p-3 bg-blue-900/20 border border-blue-800/30 rounded-lg">
+              <p class="text-sm text-blue-300">💡 Marca as páginas que são de "obrigado" (conversão). Estas aparecerão no tab Conversão.</p>
+            </div>
+            <div id="pages-list" class="space-y-2">
+              <!-- Will be populated dynamically -->
+              <div class="text-center text-gray-500 py-8">A carregar páginas...</div>
+            </div>
           </div>
         </div>
 
@@ -545,10 +688,14 @@
           pages: [],
           acquisition: [],
           domainBreakdown: [],
+          conversion: [],
+          conversionTimeline: [],
         },
         domainSettings: {}, // { 'hostname': true/false }
         tempDomainSettings: {}, // Temporary state for modal
         allDomains: [], // All available domains
+        pageSettings: [], // All pages with is_obrigado flag
+        tempPageSettings: {}, // Temporary state for modal { 'hostname|page_path': true/false }
         cache: new Map(),
         loading: false,
         activeTab: 'overview',
@@ -1026,6 +1173,65 @@
         });
 
         return Object.values(aggregated).sort((a, b) => b.sessions - a.sessions);
+      };
+
+      const fetchPageSettings = async () => {
+        const { data, error } = await supabase
+          .from('page_settings')
+          .select('*')
+          .order('hostname')
+          .order('page_path');
+
+        if (error) throw error;
+        return data || [];
+      };
+
+      const updatePageSetting = async (hostname, pagePath, isObrigado) => {
+        const { error } = await supabase
+          .from('page_settings')
+          .update({ is_obrigado: isObrigado })
+          .eq('hostname', hostname)
+          .eq('page_path', pagePath);
+
+        if (error) throw error;
+      };
+
+      const fetchConversionData = async (from, to, filters = {}) => {
+        // Get obrigado pages
+        const obrigadoPages = state.pageSettings.filter(p => p.is_obrigado);
+        
+        if (obrigadoPages.length === 0) return [];
+
+        // Build query for analytics_core filtered by obrigado pages
+        let query = supabase
+          .from('analytics_core')
+          .select('hostname, page_path, date, unique_users, sessions, new_users, avg_session_duration, engagement_rate')
+          .gte('date', from)
+          .lte('date', to);
+
+        // Apply hostname filter if set
+        if (filters.hostname) {
+          if (state.domainSettings[filters.hostname] === false) {
+            return [];
+          }
+          query = query.eq('hostname', filters.hostname);
+        } else {
+          // Only active domains
+          const activeDomains = getActiveDomains();
+          if (activeDomains.length === 0) return [];
+          query = query.in('hostname', activeDomains);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        // Filter only obrigado pages
+        const obrigadoSet = new Set(obrigadoPages.map(p => `${p.hostname}|${p.page_path}`));
+        const filtered = (data || []).filter(row => 
+          obrigadoSet.has(`${row.hostname}|${row.page_path}`)
+        );
+
+        return filtered;
       };
 
       // ========================================
@@ -1559,6 +1765,199 @@
         }
       };
 
+      const renderConversionKPIs = (conversionData) => {
+        const totalSessions = sum(conversionData, 'sessions');
+        const totalUsers = sum(conversionData, 'unique_users');
+        const engagementRate = weightedAvg(conversionData, 'engagement_rate', 'sessions');
+
+        document.getElementById('conversion-total-sessions').textContent = fmtNumber(totalSessions);
+        document.getElementById('conversion-total-users').textContent = fmtNumber(totalUsers);
+        document.getElementById('conversion-engagement-rate').textContent = fmtPercent(engagementRate);
+      };
+
+      const renderConversionTimeline = (conversionData) => {
+        const ctx = document.getElementById('chart-conversion-timeline');
+        if (!ctx) return;
+
+        if (charts.conversionTimeline) charts.conversionTimeline.destroy();
+
+        // Aggregate by date
+        const byDate = {};
+        conversionData.forEach(row => {
+          if (!byDate[row.date]) {
+            byDate[row.date] = { sessions: 0, users: 0 };
+          }
+          byDate[row.date].sessions += row.sessions || 0;
+          byDate[row.date].users += row.unique_users || 0;
+        });
+
+        const sorted = Object.keys(byDate).sort().map(date => ({
+          date,
+          ...byDate[date]
+        }));
+
+        const labels = sorted.map(d => fmtDate(d.date));
+        const sessions = sorted.map(d => d.sessions);
+        const users = sorted.map(d => d.users);
+
+        charts.conversionTimeline = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Conversões (Sessions)',
+                data: sessions,
+                borderColor: CONFIG.colors.success,
+                backgroundColor: 'transparent',
+                borderWidth: 3,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+              },
+              {
+                label: 'Utilizadores',
+                data: users,
+                borderColor: CONFIG.colors.primary,
+                backgroundColor: 'transparent',
+                borderWidth: 3,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+              mode: 'index',
+              intersect: false,
+            },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                align: 'end',
+                labels: { color: '#e5e5e5', padding: 15, usePointStyle: true },
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+                padding: 12,
+              },
+            },
+            scales: {
+              x: {
+                ticks: { color: '#9ca3af' },
+                grid: { color: '#2a2a2a' },
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#9ca3af' },
+                grid: { color: '#2a2a2a' },
+              },
+            },
+          },
+        });
+      };
+
+      const renderConversionPagesTable = (conversionData) => {
+        const tbody = document.querySelector('#table-conversion-pages tbody');
+        if (!tbody) return;
+
+        // Aggregate by page
+        const byPage = {};
+        conversionData.forEach(row => {
+          const key = `${row.hostname}${row.page_path}`;
+          if (!byPage[key]) {
+            byPage[key] = {
+              hostname: row.hostname,
+              page_path: row.page_path,
+              sessions: 0,
+              users: 0,
+              _eng_weighted: 0,
+            };
+          }
+          byPage[key].sessions += row.sessions || 0;
+          byPage[key].users += row.unique_users || 0;
+          byPage[key]._eng_weighted += (row.engagement_rate || 0) * (row.sessions || 0);
+        });
+
+        const pages = Object.values(byPage).map(p => ({
+          ...p,
+          engagement_rate: p.sessions > 0 ? p._eng_weighted / p.sessions : 0,
+        })).sort((a, b) => b.sessions - a.sessions);
+
+        const html = pages.slice(0, 10).map(page => `
+          <tr>
+            <td>
+              <div class="text-xs text-gray-500">${page.hostname}</div>
+              <div class="font-mono text-sm">${page.page_path}</div>
+            </td>
+            <td>${fmtNumber(page.sessions)}</td>
+            <td>${fmtNumber(page.users)}</td>
+            <td>${fmtPercent(page.engagement_rate)}</td>
+          </tr>
+        `).join('');
+
+        tbody.innerHTML = html || '<tr><td colspan="4" class="text-center text-gray-500">Sem dados</td></tr>';
+      };
+
+      const renderConversionDomainsChart = (conversionData) => {
+        const ctx = document.getElementById('chart-conversion-domains');
+        if (!ctx) return;
+
+        if (charts.conversionDomains) charts.conversionDomains.destroy();
+
+        // Aggregate by hostname
+        const byDomain = {};
+        conversionData.forEach(row => {
+          if (!byDomain[row.hostname]) {
+            byDomain[row.hostname] = 0;
+          }
+          byDomain[row.hostname] += row.sessions || 0;
+        });
+
+        const sorted = Object.entries(byDomain).sort((a, b) => b[1] - a[1]);
+        const labels = sorted.map(([hostname]) => hostname);
+        const data = sorted.map(([, sessions]) => sessions);
+
+        charts.conversionDomains = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [{
+              data,
+              backgroundColor: [
+                CONFIG.colors.success, CONFIG.colors.primary, CONFIG.colors.warning,
+                CONFIG.colors.danger, '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+              ],
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: '#e5e5e5', padding: 12 },
+                position: 'bottom',
+              },
+              tooltip: {
+                backgroundColor: '#1a1a1a',
+                titleColor: '#e5e5e5',
+                bodyColor: '#9ca3af',
+                borderColor: '#3a3a3a',
+                borderWidth: 1,
+              },
+            },
+          },
+        });
+      };
+
 
       // ========================================
       // EVENTS
@@ -1688,6 +2087,23 @@
               renderAcquisitionDonutChart(state.datasets.acquisition);
             }
             break;
+          case 'conversion':
+            const hasObrigadoPages = state.pageSettings.some(p => p.is_obrigado);
+            const conversionEmpty = document.getElementById('conversion-empty');
+            const conversionContent = document.getElementById('conversion-content');
+            
+            if (!hasObrigadoPages || state.datasets.conversion.length === 0) {
+              conversionEmpty.classList.remove('hidden');
+              conversionContent.classList.add('hidden');
+            } else {
+              conversionEmpty.classList.add('hidden');
+              conversionContent.classList.remove('hidden');
+              renderConversionKPIs(state.datasets.conversion);
+              renderConversionTimeline(state.datasets.conversion);
+              renderConversionPagesTable(state.datasets.conversion);
+              renderConversionDomainsChart(state.datasets.conversion);
+            }
+            break;
         }
       };
 
@@ -1710,13 +2126,14 @@
             hostname: state.filters.hostname,
           };
 
-          // Fetch current + previous period + pages + acquisition in parallel
+          // Fetch current + previous period + pages + acquisition + conversion in parallel
           // Also fetch domain breakdown if "Todos os domínios" is selected
           const promises = [
             fetchDailyKPIs(from, to, filters),
             fetchDailyKPIs(previous.from, previous.to, filters),
             fetchPages(from, to, filters),
             fetchAcquisition(from, to, filters),
+            fetchConversionData(from, to, filters),
           ];
 
           // Add domain breakdown only when no hostname filter
@@ -1725,7 +2142,7 @@
           }
 
           const results = await Promise.all(promises);
-          const [kpisCurrentFull, kpisPreviousFull, pages, acquisition, domainBreakdown] = results;
+          const [kpisCurrentFull, kpisPreviousFull, pages, acquisition, conversion, domainBreakdown] = results;
 
           // Filter data to EXACT period for KPI calculation (not expanded)
           const kpisCurrent = kpisCurrentFull.filter(d => d.date >= from && d.date <= to);
@@ -1736,6 +2153,7 @@
           state.datasets.kpisPrevious = kpisPreviousFull;
           state.datasets.pages = pages;
           state.datasets.acquisition = acquisition;
+          state.datasets.conversion = conversion || [];
           state.datasets.domainBreakdown = domainBreakdown || [];
 
           // Compute KPIs using ONLY the filtered period data
@@ -1761,11 +2179,17 @@
       const openSettingsModal = async () => {
         // Clone current settings to temp
         state.tempDomainSettings = { ...state.domainSettings };
+        
+        // Clone page settings
+        state.tempPageSettings = {};
+        state.pageSettings.forEach(p => {
+          state.tempPageSettings[`${p.hostname}|${p.page_path}`] = p.is_obrigado;
+        });
 
         // Show modal
         document.getElementById('settings-modal').classList.remove('hidden');
 
-        // Render domains
+        // Render domains (default tab)
         await renderDomainsList();
       };
 
@@ -1773,10 +2197,33 @@
         document.getElementById('settings-modal').classList.add('hidden');
       };
 
-      const saveSettingsModal = () => {
-        // Save temp to actual
+      const saveSettingsModal = async () => {
+        // Save domain settings
         state.domainSettings = { ...state.tempDomainSettings };
         saveDomainSettingsToLocalStorage();
+        
+        // Save page settings to Supabase
+        const updates = [];
+        for (const [key, isObrigado] of Object.entries(state.tempPageSettings)) {
+          const [hostname, pagePath] = key.split('|');
+          const current = state.pageSettings.find(p => p.hostname === hostname && p.page_path === pagePath);
+          
+          if (current && current.is_obrigado !== isObrigado) {
+            updates.push(updatePageSetting(hostname, pagePath, isObrigado));
+          }
+        }
+
+        if (updates.length > 0) {
+          try {
+            await Promise.all(updates);
+            // Reload page settings
+            state.pageSettings = await fetchPageSettings();
+          } catch (error) {
+            console.error('Error saving page settings:', error);
+            alert('Erro ao guardar configurações de páginas');
+            return;
+          }
+        }
         
         // Close modal
         closeSettingsModal();
@@ -1846,6 +2293,108 @@
         });
       };
 
+      const renderPagesList = async () => {
+        const container = document.getElementById('pages-list');
+        
+        if (state.pageSettings.length === 0) {
+          container.innerHTML = '<div class="text-center text-gray-500 py-8">Nenhuma página encontrada</div>';
+          return;
+        }
+
+        // Group by hostname
+        const grouped = {};
+        state.pageSettings.forEach(page => {
+          if (!grouped[page.hostname]) {
+            grouped[page.hostname] = [];
+          }
+          grouped[page.hostname].push(page);
+        });
+
+        let html = '';
+        for (const [hostname, pages] of Object.entries(grouped).sort()) {
+          html += `
+            <div class="mb-4">
+              <div class="text-sm font-semibold text-gray-300 mb-2 px-2">${hostname}</div>
+              <div class="space-y-1">
+          `;
+
+          pages.forEach(page => {
+            const key = `${page.hostname}|${page.page_path}`;
+            const isChecked = state.tempPageSettings[key] === true;
+            const rowClass = isChecked ? 'page-row is-obrigado' : 'page-row';
+
+            html += `
+              <div class="${rowClass}">
+                <div class="flex-1">
+                  <span class="font-mono text-xs">${page.page_path}</span>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    class="checkbox-obrigado" 
+                    data-page-key="${key}"
+                    ${isChecked ? 'checked' : ''}
+                  />
+                  <span class="text-xs text-gray-400">Obrigado</span>
+                </label>
+              </div>
+            `;
+          });
+
+          html += `
+              </div>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html;
+
+        // Add event listeners
+        container.querySelectorAll('.checkbox-obrigado').forEach(checkbox => {
+          checkbox.addEventListener('change', (e) => {
+            const key = e.target.dataset.pageKey;
+            state.tempPageSettings[key] = e.target.checked;
+
+            // Update row style
+            const row = e.target.closest('.page-row');
+            if (e.target.checked) {
+              row.classList.add('is-obrigado');
+            } else {
+              row.classList.remove('is-obrigado');
+            }
+          });
+        });
+      };
+
+      const switchSettingsTab = (tabName) => {
+        // Update tabs
+        document.querySelectorAll('.settings-tab').forEach(tab => {
+          tab.classList.remove('active');
+          tab.style.color = '#9ca3af';
+          tab.style.borderBottomColor = 'transparent';
+        });
+        const activeTab = document.querySelector(`[data-settings-tab="${tabName}"]`);
+        if (activeTab) {
+          activeTab.classList.add('active');
+          activeTab.style.color = '#3b82f6';
+          activeTab.style.borderBottomColor = '#3b82f6';
+        }
+
+        // Show/hide content
+        document.querySelectorAll('.settings-tab-content').forEach(content => {
+          content.classList.add('hidden');
+        });
+        const activeContent = document.getElementById(`settings-tab-${tabName}`);
+        if (activeContent) {
+          activeContent.classList.remove('hidden');
+        }
+
+        // Render content if needed
+        if (tabName === 'pages') {
+          renderPagesList();
+        }
+      };
+
       const populateFilterOptions = async () => {
         const { hostnames } = await fetchFilterOptions();
 
@@ -1909,6 +2458,9 @@
           }
         });
         saveDomainSettingsToLocalStorage();
+
+        // Load page settings from Supabase
+        state.pageSettings = await fetchPageSettings();
 
         // Load filters
         loadFiltersFromLocalStorage();
@@ -1975,6 +2527,13 @@
 
         document.getElementById('settings-backdrop').addEventListener('click', () => {
           closeSettingsModal();
+        });
+
+        // Settings modal tabs
+        document.querySelectorAll('.settings-tab').forEach((tab) => {
+          tab.addEventListener('click', () => {
+            switchSettingsTab(tab.dataset.settingsTab);
+          });
         });
 
         document.querySelectorAll('.tab').forEach((tab) => {
