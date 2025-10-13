@@ -487,21 +487,16 @@
       <div id="tab-conversion" class="tab-content hidden">
         <div id="conversion-content" class="grid grid-cols-1 gap-6">
           <!-- KPIs de Conversão -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="card rounded-lg p-6">
-              <h4 class="text-sm text-gray-400 mb-2">Total Conversões</h4>
-              <div class="text-3xl font-bold" id="conversion-total-sessions">—</div>
-              <div class="text-xs text-gray-500 mt-1">Sessions em páginas de obrigado</div>
-            </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="card rounded-lg p-6">
               <h4 class="text-sm text-gray-400 mb-2">Utilizadores Convertidos</h4>
               <div class="text-3xl font-bold" id="conversion-total-users">—</div>
-              <div class="text-xs text-gray-500 mt-1">Utilizadores únicos</div>
+              <div class="text-xs text-gray-500 mt-1">Utilizadores únicos em páginas de obrigado</div>
             </div>
             <div class="card rounded-lg p-6">
-              <h4 class="text-sm text-gray-400 mb-2">Taxa de Engagement</h4>
-              <div class="text-3xl font-bold" id="conversion-engagement-rate">—</div>
-              <div class="text-xs text-gray-500 mt-1">Engagement médio</div>
+              <h4 class="text-sm text-gray-400 mb-2">Novos Utilizadores</h4>
+              <div class="text-3xl font-bold" id="conversion-new-users">—</div>
+              <div class="text-xs text-gray-500 mt-1">Novos utilizadores convertidos</div>
             </div>
           </div>
 
@@ -523,9 +518,8 @@
                   <thead>
                     <tr>
                       <th data-sort="page">Página</th>
-                      <th data-sort="sessions">Sessions</th>
                       <th data-sort="users">Users</th>
-                      <th data-sort="engagement">Engagement</th>
+                      <th data-sort="new_users">New Users</th>
                     </tr>
                   </thead>
                   <tbody></tbody>
@@ -1766,13 +1760,11 @@
       };
 
       const renderConversionKPIs = (conversionData) => {
-        const totalSessions = sum(conversionData, 'sessions');
         const totalUsers = sum(conversionData, 'unique_users');
-        const engagementRate = weightedAvg(conversionData, 'engagement_rate', 'sessions');
+        const newUsers = sum(conversionData, 'new_users');
 
-        document.getElementById('conversion-total-sessions').textContent = fmtNumber(totalSessions);
         document.getElementById('conversion-total-users').textContent = fmtNumber(totalUsers);
-        document.getElementById('conversion-engagement-rate').textContent = fmtPercent(engagementRate);
+        document.getElementById('conversion-new-users').textContent = fmtNumber(newUsers);
       };
 
       const renderConversionTimeline = (conversionData) => {
@@ -1785,10 +1777,10 @@
         const byDate = {};
         conversionData.forEach(row => {
           if (!byDate[row.date]) {
-            byDate[row.date] = { sessions: 0, users: 0 };
+            byDate[row.date] = { users: 0, newUsers: 0 };
           }
-          byDate[row.date].sessions += row.sessions || 0;
           byDate[row.date].users += row.unique_users || 0;
+          byDate[row.date].newUsers += row.new_users || 0;
         });
 
         const sorted = Object.keys(byDate).sort().map(date => ({
@@ -1797,8 +1789,8 @@
         }));
 
         const labels = sorted.map(d => fmtDate(d.date));
-        const sessions = sorted.map(d => d.sessions);
         const users = sorted.map(d => d.users);
+        const newUsers = sorted.map(d => d.newUsers);
 
         charts.conversionTimeline = new Chart(ctx, {
           type: 'line',
@@ -1806,8 +1798,8 @@
             labels,
             datasets: [
               {
-                label: 'Conversões (Sessions)',
-                data: sessions,
+                label: 'Utilizadores',
+                data: users,
                 borderColor: CONFIG.colors.success,
                 backgroundColor: 'transparent',
                 borderWidth: 3,
@@ -1816,8 +1808,8 @@
                 pointHoverRadius: 6,
               },
               {
-                label: 'Utilizadores',
-                data: users,
+                label: 'Novos Utilizadores',
+                data: newUsers,
                 borderColor: CONFIG.colors.primary,
                 backgroundColor: 'transparent',
                 borderWidth: 3,
@@ -1877,20 +1869,15 @@
             byPage[key] = {
               hostname: row.hostname,
               page_path: row.page_path,
-              sessions: 0,
               users: 0,
-              _eng_weighted: 0,
+              new_users: 0,
             };
           }
-          byPage[key].sessions += row.sessions || 0;
           byPage[key].users += row.unique_users || 0;
-          byPage[key]._eng_weighted += (row.engagement_rate || 0) * (row.sessions || 0);
+          byPage[key].new_users += row.new_users || 0;
         });
 
-        const pages = Object.values(byPage).map(p => ({
-          ...p,
-          engagement_rate: p.sessions > 0 ? p._eng_weighted / p.sessions : 0,
-        })).sort((a, b) => b.sessions - a.sessions);
+        const pages = Object.values(byPage).sort((a, b) => b.users - a.users);
 
         const html = pages.slice(0, 10).map(page => `
           <tr>
@@ -1898,13 +1885,12 @@
               <div class="text-xs text-gray-500">${page.hostname}</div>
               <div class="font-mono text-sm">${page.page_path}</div>
             </td>
-            <td>${fmtNumber(page.sessions)}</td>
             <td>${fmtNumber(page.users)}</td>
-            <td>${fmtPercent(page.engagement_rate)}</td>
+            <td>${fmtNumber(page.new_users)}</td>
           </tr>
         `).join('');
 
-        tbody.innerHTML = html || '<tr><td colspan="4" class="text-center text-gray-500">Sem dados</td></tr>';
+        tbody.innerHTML = html || '<tr><td colspan="3" class="text-center text-gray-500">Sem dados</td></tr>';
       };
 
       const renderConversionDomainsChart = (conversionData) => {
@@ -1919,12 +1905,12 @@
           if (!byDomain[row.hostname]) {
             byDomain[row.hostname] = 0;
           }
-          byDomain[row.hostname] += row.sessions || 0;
+          byDomain[row.hostname] += row.unique_users || 0;
         });
 
         const sorted = Object.entries(byDomain).sort((a, b) => b[1] - a[1]);
         const labels = sorted.map(([hostname]) => hostname);
-        const data = sorted.map(([, sessions]) => sessions);
+        const data = sorted.map(([, users]) => users);
 
         charts.conversionDomains = new Chart(ctx, {
           type: 'doughnut',
