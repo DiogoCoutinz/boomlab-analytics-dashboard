@@ -790,47 +790,44 @@
         
         const lower = sourceMedium.toLowerCase();
         const sourceMedianParts = sourceMedium.split('/').map(p => p.trim());
-        const source = sourceMedianParts[0] || '';
-        const medium = sourceMedianParts[1] || '';
+        const source = (sourceMedianParts[0] || '').toLowerCase();
+        const medium = (sourceMedianParts[1] || '').toLowerCase();
         
-        // Paid Social indicators
-        const paidSocialPatterns = [
-          // Facebook Ads Manager
-          /adsmanager\.facebook\.com/i,
-          /business\.facebook\.com/i,
-          // Campaign patterns (CA = Campanha/Campaign)
-          /\/\s*ca\s*\d+/i,  // "fb / CA 1"
-          /\/\s*ca\+\d+/i,   // "fb / CA+1+"
-          // Explicit paid indicators with social sources
-          /(fb|ig|facebook|instagram).*\/(paid|cpc|ppc|ads)/i,
-        ];
+        // Paid Other (unknown ad networks) - check FIRST before Paid Social
+        const isPaidOther = (
+          /^an\s*$/i.test(source) ||  // source is exactly "an"
+          (/^\d{10,}/.test(source) && /ca\s*\d+/i.test(medium)) // long numeric ID with campaign
+        );
         
-        for (const pattern of paidSocialPatterns) {
-          if (pattern.test(lower)) {
+        if (isPaidOther && (channel === 'Unassigned' || channel === 'Unknown' || channel === 'Organic Social')) {
+          return 'Paid Other';
+        }
+        
+        // Paid Social indicators (only for actual social sources)
+        const isSocialSource = /^(fb|ig|facebook|instagram|m\.facebook|l\.instagram|adsmanager\.facebook|business\.facebook)/i.test(source);
+        
+        if (isSocialSource) {
+          const paidSocialIndicators = [
+            /adsmanager\.facebook/i.test(source),  // Ads Manager = always paid
+            /business\.facebook/i.test(source),    // Business Manager = always paid
+            /ca\s*\+?\d+/i.test(medium),           // Campaign pattern "CA 1", "CA+1+"
+            /\/(paid|cpc|ppc|ads)/i.test(medium),  // Explicit paid medium
+          ];
+          
+          if (paidSocialIndicators.some(indicator => indicator)) {
             return 'Paid Social';
           }
         }
         
         // Paid Search indicators
-        if (/(google|bing|yahoo|duckduckgo).*\/(cpc|ppc|paid)/i.test(lower)) {
+        if (/(google|bing|yahoo|duckduckgo)/i.test(source) && /(cpc|ppc|paid)/i.test(medium)) {
           return 'Paid Search';
-        }
-        
-        // Paid Other (unknown ad networks)
-        const paidOtherPatterns = [
-          /^an\s*\//i,  // "an / ..." - ad network
-          /\/\s*(paid|cpc|ppc|ads)\s*$/i,  // ends with paid indicator
-        ];
-        
-        for (const pattern of paidOtherPatterns) {
-          if (pattern.test(lower) && (channel === 'Unassigned' || channel === 'Unknown')) {
-            return 'Paid Other';
-          }
         }
         
         // If still Unassigned but has clear social referral, classify as Organic Social
         if ((channel === 'Unassigned' || channel === 'Unknown') && 
-            /(facebook|instagram|twitter|linkedin|tiktok|pinterest).*\/\s*referral/i.test(lower)) {
+            /(facebook|instagram|twitter|linkedin|tiktok|pinterest)/i.test(source) && 
+            /referral/i.test(medium)) {
           return 'Organic Social';
         }
         
