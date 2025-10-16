@@ -755,10 +755,14 @@
           { regex: /^google\s*\/\s*cpc$/i, label: 'Google Ads' },
           { regex: /^google\s*\/\s*organic$/i, label: 'Google (orgânico)' },
           { regex: /^bing\s*\/\s*organic$/i, label: 'Bing (orgânico)' },
-          { regex: /^an\s*\/\s*paid$/i, label: 'Anúncios (outras redes)' },
+          { regex: /^an\s*\/\s*(.+)/i, label: 'Anúncios (Ad Network)' },
+          { regex: /^fb\s*\/\s*ca\s*\+?\d+/i, label: 'Facebook Ads (Campanha)' },
+          { regex: /^ig\s*\/\s*ca\s*\+?\d+/i, label: 'Instagram Ads (Campanha)' },
           { regex: /^fb\s*\/\s*(.+)/i, label: (m) => `Facebook / ${m[1]}` },
           { regex: /^ig\s*\/\s*(.+)/i, label: (m) => `Instagram / ${m[1]}` },
           { regex: /^adsmanager\.facebook\.com\s*\/\s*(.+)/i, label: 'Facebook Ads Manager' },
+          { regex: /^m\.facebook\.com\s*\/\s*referral$/i, label: 'Facebook (mobile)' },
+          { regex: /^l\.instagram\.com\s*\/\s*referral$/i, label: 'Instagram (link)' },
           { regex: /^app\.gohighlevel\.com\s*\/\s*(.+)/i, label: 'GoHighLevel' },
           { regex: /^business\.facebook\.com\s*\/\s*(.+)/i, label: 'Facebook Business' },
           { regex: /^\(direct\)\s*\/\s*\(none\)$/i, label: 'Direto' },
@@ -778,6 +782,59 @@
         }
         
         return cleaned;
+      };
+
+      // Improve channel classification based on source/medium patterns
+      const improveChannelClassification = (channel, sourceMedium) => {
+        if (!sourceMedium) return channel;
+        
+        const lower = sourceMedium.toLowerCase();
+        const sourceMedianParts = sourceMedium.split('/').map(p => p.trim());
+        const source = sourceMedianParts[0] || '';
+        const medium = sourceMedianParts[1] || '';
+        
+        // Paid Social indicators
+        const paidSocialPatterns = [
+          // Facebook Ads Manager
+          /adsmanager\.facebook\.com/i,
+          /business\.facebook\.com/i,
+          // Campaign patterns (CA = Campanha/Campaign)
+          /\/\s*ca\s*\d+/i,  // "fb / CA 1"
+          /\/\s*ca\+\d+/i,   // "fb / CA+1+"
+          // Explicit paid indicators with social sources
+          /(fb|ig|facebook|instagram).*\/(paid|cpc|ppc|ads)/i,
+        ];
+        
+        for (const pattern of paidSocialPatterns) {
+          if (pattern.test(lower)) {
+            return 'Paid Social';
+          }
+        }
+        
+        // Paid Search indicators
+        if (/(google|bing|yahoo|duckduckgo).*\/(cpc|ppc|paid)/i.test(lower)) {
+          return 'Paid Search';
+        }
+        
+        // Paid Other (unknown ad networks)
+        const paidOtherPatterns = [
+          /^an\s*\//i,  // "an / ..." - ad network
+          /\/\s*(paid|cpc|ppc|ads)\s*$/i,  // ends with paid indicator
+        ];
+        
+        for (const pattern of paidOtherPatterns) {
+          if (pattern.test(lower) && (channel === 'Unassigned' || channel === 'Unknown')) {
+            return 'Paid Other';
+          }
+        }
+        
+        // If still Unassigned but has clear social referral, classify as Organic Social
+        if ((channel === 'Unassigned' || channel === 'Unknown') && 
+            /(facebook|instagram|twitter|linkedin|tiktok|pinterest).*\/\s*referral/i.test(lower)) {
+          return 'Organic Social';
+        }
+        
+        return channel;
       };
 
       const cleanChannel = (channel) => {
@@ -1088,10 +1145,15 @@
           aggregated[key]._eng_weighted += (row.engagement_rate || 0) * (row.sessions || 0);
         });
 
-        return Object.values(aggregated).map((item) => ({
-          ...item,
-          engagement_rate: item.sessions > 0 ? item._eng_weighted / item.sessions : 0,
-        })).sort((a, b) => b.sessions - a.sessions);
+        return Object.values(aggregated).map((item) => {
+          // Improve channel classification before returning
+          const improvedChannel = improveChannelClassification(item.channel, item.source_medium);
+          return {
+            ...item,
+            channel: improvedChannel,
+            engagement_rate: item.sessions > 0 ? item._eng_weighted / item.sessions : 0,
+          };
+        }).sort((a, b) => b.sessions - a.sessions);
       };
 
       const fetchFilterOptions = async () => {
