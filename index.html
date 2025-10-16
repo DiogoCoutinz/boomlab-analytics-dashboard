@@ -755,7 +755,13 @@
           { regex: /^google\s*\/\s*cpc$/i, label: 'Google Ads' },
           { regex: /^google\s*\/\s*organic$/i, label: 'Google (orgânico)' },
           { regex: /^bing\s*\/\s*organic$/i, label: 'Bing (orgânico)' },
-          { regex: /^an\s*\/\s*(.+)/i, label: 'Anúncios (Ad Network)' },
+          // Ad Network with campaign detail
+          { regex: /^an\s*\/\s*paid$/i, label: 'Ad Network (paid)' },
+          { regex: /^an\s*\/\s*ca\s*\+?\d+\s*\|\s*(\w+)/i, label: (m) => `Ad Network | ${m[1]}` },
+          { regex: /^an\s*\/\s*(.+)/i, label: (m) => `Ad Network / ${m[1].substring(0, 25)}${m[1].length > 25 ? '...' : ''}` },
+          // Facebook/Instagram campaigns
+          { regex: /^fb\s*\/\s*ca\s*\+?\d+\s*\|\s*(\w+)/i, label: (m) => `Facebook Ads | ${m[1]}` },
+          { regex: /^ig\s*\/\s*ca\s*\+?\d+\s*\|\s*(\w+)/i, label: (m) => `Instagram Ads | ${m[1]}` },
           { regex: /^fb\s*\/\s*ca\s*\+?\d+/i, label: 'Facebook Ads (Campanha)' },
           { regex: /^ig\s*\/\s*ca\s*\+?\d+/i, label: 'Instagram Ads (Campanha)' },
           { regex: /^fb\s*\/\s*(.+)/i, label: (m) => `Facebook / ${m[1]}` },
